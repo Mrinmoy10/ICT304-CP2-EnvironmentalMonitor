@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   DESIGN TOKENS
+
+   Values are the palette agreed in ICT304 Assessment 1, Table 4,
+   expressed as HSL channels so Tailwind can apply opacity
+   modifiers such as text-state-good/40. Hex equivalents are noted
+   for traceability back to the design documentation.
+   ============================================================ */
+@layer base {
+  :root {
+    --surface-base: 220 47% 11%;      /* #0F1729 */
+    --surface-card: 222 41% 14%;      /* #151E33 */
+    --surface-raised: 222 40% 18%;    /* #1B2540 */
+    --surface-sunken: 220 48% 9%;     /* deeper well for data regions */
+    --line: 220 39% 22%;              /* #22304F */
+
+    --ink-primary: 220 39% 94%;       /* #E8ECF5 */
+    --ink-secondary: 220 24% 66%;     /* #93A1BF */
+
+    --brand: 221 83% 53%;             /* primary action */
+    --brand-strong: 224 76% 48%;
+
+    --metric-temperature: 335 100% 62%;  /* #FF3D8B */
+    --metric-humidity: 187 85% 53%;      /* #22D3EE */
+    --metric-air: 258 90% 76%;           /* #A78BFA — extension, see README */
+
+    --state-good: 160 64% 52%;        /* #34D399 */
+    --state-warning: 43 96% 56%;      /* #FBBF24 */
+    --state-critical: 350 89% 60%;    /* #F43F5E */
+
+    --header-height: 56px;
+    --context-height: 48px;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  body {
+    @apply bg-surface-base font-sans text-sm text-ink-primary antialiased;
+    /* Tabular figures stop readings shifting width on the five-second refresh */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Every focusable element gets a visible ring (A1 section 4.6) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-metric-humidity ring-offset-2 ring-offset-surface-base;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Scrollbars tuned to the surface palette rather than the OS default */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full border-4 border-solid border-transparent bg-line bg-clip-content; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-ink-secondary/40 bg-clip-content; }
+}
+
+@layer components {
+  .skip-link {
+    @apply absolute left-[-9999px] top-0 z-[999] rounded-br-lg bg-metric-humidity px-5 py-3 font-semibold text-surface-base;
+  }
+  .skip-link:focus { @apply left-0; }
+
+  /* Shell measurements: page gutter narrows with the viewport */
+  .shell-gutter { @apply px-6 lg:px-10 xl:px-14; }
+
+  .skeleton {
+    @apply animate-shimmer rounded-md;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--surface-raised)) 25%,
+      hsl(var(--line)) 50%,
+      hsl(var(--surface-raised)) 75%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Data tables share one rhythm across every screen */
+  .data-table { @apply w-full border-collapse text-sm; }
+  .data-table thead th {
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface-raised px-4 py-3
+           text-left text-xs font-medium uppercase tracking-[0.06em] text-ink-secondary;
+  }
+  .data-table tbody td { @apply border-b border-line/60 px-4 py-3 align-middle; }
+  .data-table tbody tr:last-child td { @apply border-b-0; }
+  .data-table tbody tr { @apply transition-colors; }
+  .data-table tbody tr:hover { @apply bg-surface-raised/40; }
+}
