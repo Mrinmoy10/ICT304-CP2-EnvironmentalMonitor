@@ -1,0 +1,88 @@
+# ============================================================
+# Full stack for the Cloud-Based Environmental Data Monitoring System
+#
+#   docker compose up --build              start everything
+#   docker compose --profile test run --rm api-test    run the API test suite
+#   docker compose exec api npm run perf   measure response times
+#   docker compose down                    stop (add -v to wipe the database)
+#
+# Web app:     http://localhost:8080
+# API health:  http://localhost:4000/health
+# Prometheus:  http://localhost:9090
+# ============================================================
+name: envmonitor
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: envmonitor
+      MYSQL_USER: envapp
+      MYSQL_PASSWORD: ${DB_PASSWORD:-envapp_password}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3307:3306"          # 3307 on your laptop, so it never clashes with another MySQL
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build:
+      context: ./backend
+      target: runtime
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: envapp
+      DB_PASSWORD: ${DB_PASSWORD:-envapp_password}
+      DB_NAME: envmonitor
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-please-change-3f9a1c7e}
+      CORS_ORIGIN: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - api
+    volumes:
+      - ./deploy/nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+    ports:
+      - "9090:9090"
+
+  api-test:
+    profiles: ["test"]
+    build:
+      context: ./backend
+      target: test
+    environment:
+      DB_HOST: db
+      DB_USER: envapp
+      DB_PASSWORD: ${DB_PASSWORD:-envapp_password}
+      DB_NAME: envmonitor_test
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { DATA_SOURCES } from "../../lib/data.js";
+import { useState, useEffect } from "react";
+import { api } from "../../lib/api.js";
 import { StatusBadge, Badge } from "../../components/ui/badge.jsx";
 import { Switch } from "../../components/ui/switch.jsx";
 
@@ -11,21 +11,35 @@ const TYPE_TONE = {
 
 /** FR1, FR8 — control which sensors, APIs and generators contribute readings. */
 export default function DataSourceManagement({ toast }) {
-  const [sources, setSources] = useState(DATA_SOURCES);
+  const [sources, setSources] = useState([]);
 
-  const setActive = (sourceId, value) =>
-    setSources((list) => list.map((s) => (s.source_id === sourceId ? { ...s, is_active: value } : s)));
+  useEffect(() => {
+    api.getSources().then(setSources).catch((err) =>
+      toast({ tone: "critical", title: "Could not load data sources", description: err.message })
+    );
+  }, [toast]);
 
-  const toggle = (source) => {
+  /** PATCH /api/sources/:id — disabling the simulated generator stops new readings server-side. */
+  const setActive = async (sourceId, value) => {
+    const updated = await api.setSourceActive(sourceId, value);
+    setSources((list) => list.map((s) => (s.source_id === sourceId ? { ...s, ...updated } : s)));
+  };
+
+  const toggle = async (source) => {
     const wasActive = source.is_active;
-    setActive(source.source_id, !wasActive);
+    try {
+      await setActive(source.source_id, !wasActive);
+    } catch (err) {
+      toast({ tone: "critical", title: "Change not saved", description: err.message });
+      return;
+    }
 
     toast({
       tone: wasActive ? "warning" : "good",
       title: wasActive ? "Data source disabled" : "Data source enabled",
       description: `${source.name} will ${wasActive ? "stop" : "resume"} contributing readings from the next collection cycle.`,
-      undo: () => {
-        setActive(source.source_id, wasActive);
+      undo: async () => {
+        await setActive(source.source_id, wasActive);
         toast({ tone: "info", title: "Change reverted", description: `${source.name} is ${wasActive ? "streaming" : "disabled"} again.` });
       },
     });

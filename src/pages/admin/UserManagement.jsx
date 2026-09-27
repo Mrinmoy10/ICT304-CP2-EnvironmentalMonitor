@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Plus, UserX } from "lucide-react";
-import { USERS } from "../../lib/data.js";
+import { api } from "../../lib/api.js";
 import { StatusBadge, Badge } from "../../components/ui/badge.jsx";
 import { Button } from "../../components/ui/button.jsx";
 import { Input } from "../../components/ui/input.jsx";
@@ -10,7 +10,13 @@ import { EmptyState } from "../../components/ui/empty-state.jsx";
 
 /** FR8 — administrators manage users and system configuration (A1 Figure 7). */
 export default function UserManagement({ toast }) {
-  const [users, setUsers] = useState(USERS);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    api.getUsers().then(setUsers).catch((err) =>
+      toast({ tone: "critical", title: "Could not load users", description: err.message })
+    );
+  }, [toast]);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -21,18 +27,26 @@ export default function UserManagement({ toast }) {
     .filter((u) => roleFilter === "all" || u.role === roleFilter)
     .filter((u) => statusFilter === "all" || (statusFilter === "active" ? u.is_active : !u.is_active));
 
-  const setActive = (userId, value) =>
-    setUsers((list) => list.map((u) => (u.user_id === userId ? { ...u, is_active: value } : u)));
+  /** PATCH /api/users/:id — the list is updated from the server's response. */
+  const setActive = async (userId, value) => {
+    const updated = await api.setUserActive(userId, value);
+    setUsers((list) => list.map((u) => (u.user_id === userId ? { ...u, ...updated } : u)));
+  };
 
   /**
    * Disabling an account is reversible from the confirmation toast, so a
    * mis-click costs one click to recover rather than a support request
    * (Shneiderman's sixth rule).
    */
-  const toggleAccount = (user) => {
+  const toggleAccount = async (user) => {
     const wasActive = user.is_active;
-    setActive(user.user_id, !wasActive);
     setConfirming(null);
+    try {
+      await setActive(user.user_id, !wasActive);
+    } catch (err) {
+      toast({ tone: "critical", title: "Change not saved", description: err.message });
+      return;
+    }
 
     toast({
       tone: wasActive ? "warning" : "good",
@@ -40,8 +54,8 @@ export default function UserManagement({ toast }) {
       description: wasActive
         ? `${user.full_name} can no longer sign in. Their readings and acknowledgements are retained.`
         : `${user.full_name} can sign in again with their existing role and locations.`,
-      undo: () => {
-        setActive(user.user_id, wasActive);
+      undo: async () => {
+        await setActive(user.user_id, wasActive);
         toast({ tone: "info", title: "Change reverted", description: `${user.full_name} is ${wasActive ? "active" : "disabled"} again.` });
       },
     });
@@ -51,7 +65,7 @@ export default function UserManagement({ toast }) {
     toast({
       tone: "info",
       title: "Available in the next release",
-      description: `${feature} writes to the database, which is delivered with the back-end in Assessment 3.`,
+      description: `${feature} is available through the API (POST /api/users); the on-screen form is scheduled for the next release.`,
     });
 
   const resetFilters = () => { setQuery(""); setRoleFilter("all"); setStatusFilter("all"); };

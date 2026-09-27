@@ -4,3 +4,5 @@ dist
 .github
 *.md
 .env*
+backend
+deploy

@@ -4,7 +4,8 @@ import { TooltipProvider } from "./components/ui/tooltip.jsx";
 import { ToastProvider, useToast } from "./components/ui/toast.jsx";
 import { CommandPalette } from "./components/CommandPalette.jsx";
 import { AppShell } from "./components/AppShell.jsx";
-import { defaultThresholds, visibleLocations, clock } from "./lib/data.js";
+import { visibleLocations, clock } from "./lib/data.js";
+import { api } from "./lib/api.js";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Trends from "./pages/Trends.jsx";
@@ -18,7 +19,7 @@ function Application() {
   const [user, setUser] = useState(null);
   const [route, setRoute] = useState("dashboard");
   const [adminSection, setAdminSection] = useState("users");
-  const [thresholds, setThresholds] = useState(defaultThresholds);
+  const [thresholds, setThresholds] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(1);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -36,44 +37,41 @@ function Application() {
   }, []);
 
   /**
-   * A notification carrying a severity also creates an alert record: the
-   * toast is transient, the alert is not. This mirrors the separation
-   * between a client notification and the alerts table in the schema.
+   * Toasts are transient client notifications. The durable alert records are
+   * created by the back end when a stored reading breaches its band, and are
+   * polled from GET /api/alerts below.
    */
-  const notify = useCallback(
-    ({ severity, metric, location, ...rest }) => {
-      toast(rest);
-      if (severity) {
-        setAlerts((list) => [
-          ...list,
-          {
-            alert_id: `${Date.now()}-${Math.random()}`,
-            severity,
-            metric,
-            location,
-            created_at: Date.now(),
-            acknowledged: false,
-          },
-        ]);
-      }
-    },
-    [toast]
-  );
+  // eslint-disable-next-line no-unused-vars
+  const notify = useCallback(({ severity, metric, location, ...rest }) => toast(rest), [toast]);
 
-  /** Writes an alert_acknowledgements row: who cleared the alert, and when. */
-  const acknowledge = (alertId) => {
-    setAlerts((list) =>
-      list.map((a) =>
-        a.alert_id === alertId
-          ? { ...a, acknowledged: true, acknowledged_by: user.full_name, acknowledged_at: Date.now() }
-          : a
-      )
+  const refreshAlerts = useCallback(() => {
+    api.getAlerts().then(setAlerts).catch(() => {});
+  }, []);
+
+  /* Load the account's thresholds once signed in, then poll open alerts every five seconds. */
+  useEffect(() => {
+    if (!user) return undefined;
+    api.getThresholds().then(setThresholds).catch((err) =>
+      toast({ tone: "critical", title: "Could not load thresholds", description: err.message })
     );
-    toast({
-      tone: "good",
-      title: "Alert acknowledged",
-      description: `Recorded against ${user.full_name} at ${clock(Date.now())}.`,
-    });
+    refreshAlerts();
+    const id = setInterval(refreshAlerts, 5000);
+    return () => clearInterval(id);
+  }, [user, refreshAlerts, toast]);
+
+  /** POST /api/alerts/:id/acknowledge writes an alert_acknowledgements row: who cleared it, and when. */
+  const acknowledge = async (alertId) => {
+    try {
+      await api.acknowledgeAlert(alertId);
+      refreshAlerts();
+      toast({
+        tone: "good",
+        title: "Alert acknowledged",
+        description: `Recorded against ${user.full_name} at ${clock(Date.now())}.`,
+      });
+    } catch (err) {
+      toast({ tone: "critical", title: "Could not acknowledge alert", description: err.message });
+    }
   };
 
   const signIn = (account) => {
@@ -91,12 +89,21 @@ function Application() {
   };
 
   const signOut = () => {
+    api.logout();
     setUser(null);
+    setThresholds(null);
     setAlerts([]);
     setRoute("dashboard");
   };
 
   if (!user) return <Login onLogin={signIn} />;
+  if (!thresholds) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-ink-secondary">
+        Loading your locations…
+      </div>
+    );
+  }
 
   const isAdmin = user.role === "Administrator";
 

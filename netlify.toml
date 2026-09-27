@@ -4,6 +4,10 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # The public static prototype has no server behind it, so it uses the
+  # in-browser mock API. Remove this line once the API is deployed and
+  # VITE_API_URL points at it.
+  VITE_USE_MOCK = "true"
 
 # Single-page application: every route falls back to index.html
 [[redirects]]

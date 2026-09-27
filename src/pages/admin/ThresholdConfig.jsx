@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { LOCATIONS, METRICS } from "../../lib/data.js";
+import { api } from "../../lib/api.js";
 import { cn } from "../../lib/utils.js";
 import { Card, CardHeader, CardContent } from "../../components/ui/card.jsx";
 import { Button } from "../../components/ui/button.jsx";
@@ -49,16 +50,25 @@ export default function ThresholdConfig({ thresholds, setThresholds, toast }) {
   const update = (metric, field, value) =>
     setDraft((d) => ({ ...d, [metric]: { ...d[metric], [field]: value === "" ? "" : Number(value) } }));
 
-  const save = () => {
+  /** PUT /api/thresholds/:locationId — the server re-validates the band before storing it. */
+  const save = async () => {
     const previous = clone(thresholds[scope]);
     const scopeId = scope;
-    setThresholds((t) => ({ ...t, [scopeId]: clone(draft) }));
+    const next = clone(draft);
+    try {
+      await api.saveThresholds(scopeId, next);
+    } catch (err) {
+      toast({ tone: "critical", title: "Thresholds not saved", description: err.message });
+      return;
+    }
+    setThresholds((t) => ({ ...t, [scopeId]: next }));
 
     toast({
       tone: "good",
       title: "Thresholds saved",
       description: `New bands for ${LOCATIONS.find((l) => l.location_id === Number(scopeId)).name} take effect on the next reading.`,
-      undo: () => {
+      undo: async () => {
+        await api.saveThresholds(scopeId, previous);
         setThresholds((t) => ({ ...t, [scopeId]: previous }));
         toast({ tone: "info", title: "Thresholds restored", description: "The previous bands are active again." });
       },

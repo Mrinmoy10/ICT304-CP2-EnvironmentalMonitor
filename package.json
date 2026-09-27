@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Front-end prototype for the Cloud-Based Environmental Data Monitoring System (ICT304 Capstone Project 2, Assessment 2)",
+  "description": "Front end for the Cloud-Based Environmental Data Monitoring System (ICT304 Capstone Project 2)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

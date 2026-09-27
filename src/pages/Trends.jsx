@@ -10,7 +10,7 @@ import { LineChart } from "../components/charts/LineChart.jsx";
 const RANGES = [
   { value: "6", label: "6 h", points: 12 },
   { value: "24", label: "24 h", points: 48 },
-  { value: "48", label: "48 h", points: 48 },
+  { value: "48", label: "48 h", points: 96 },
 ];
 
 /** FR6 — historical environmental data trends. */
@@ -22,7 +22,7 @@ export default function Trends({ user, selected, setSelected }) {
 
   useEffect(() => {
     setData(null);
-    api.getHistory(selected).then((history) => {
+    api.getHistory(selected, Number(range)).then((history) => {
       setData(history.slice(-RANGES.find((r) => r.value === range).points));
     });
   }, [selected, range]);

@@ -3,7 +3,13 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 5173, open: true },
+  server: {
+    port: 5173,
+    open: true,
+    // During local development, /api is forwarded to the Express API.
+    proxy: { "/api": "http://localhost:4000" },
+  },
+  preview: { port: 4173, proxy: { "/api": "http://localhost:4000" } },
   build: { outDir: "dist", sourcemap: false },
   test: {
     environment: "node",

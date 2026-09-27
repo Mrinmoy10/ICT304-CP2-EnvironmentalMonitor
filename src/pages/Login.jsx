@@ -63,7 +63,7 @@ export default function Login({ onLogin }) {
 
   const fill = (address) => {
     setEmail(address);
-    setPassword("demo1234");
+    setPassword("Demo@2026"); // seeded demo password — remove these shortcuts before production
     setError("");
     setTouched({});
   };
