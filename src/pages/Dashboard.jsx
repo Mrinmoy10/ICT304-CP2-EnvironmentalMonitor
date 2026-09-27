@@ -8,10 +8,10 @@ import { StatusBadge } from "../components/ui/badge.jsx";
 import { Button } from "../components/ui/button.jsx";
 import { Segmented } from "../components/ui/segmented.jsx";
 import { Tooltip } from "../components/ui/tooltip.jsx";
-import { Sparkline } from "../components/charts/Sparkline.jsx";
-import { Gauge } from "../components/charts/Gauge.jsx";
 import { LineChart } from "../components/charts/LineChart.jsx";
-import { Legend } from "../components/charts/Legend.jsx";
+
+const clockSeconds = (ts) =>
+  new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /** FR3 real-time visualisation, FR4 location selection, FR5 threshold alerts. */
 export default function Dashboard({ user, thresholds, alerts, onAcknowledge, toast, selected, setSelected }) {
@@ -67,7 +67,6 @@ export default function Dashboard({ user, thresholds, alerts, onAcknowledge, toa
   useEffect(() => setTrend([]), [selected]);
 
   const openCritical = alerts.filter((a) => !a.acknowledged && a.severity === "critical");
-  const series = Object.values(METRICS).map((m) => ({ key: m.key, label: m.label, color: m.accent }));
   const location = LOCATIONS.find((l) => l.location_id === Number(selected));
 
   return (
@@ -153,10 +152,6 @@ export default function Dashboard({ user, thresholds, alerts, onAcknowledge, toa
                       </span>
                     )}
                   </div>
-
-                  <div className="mt-3">
-                    <Sparkline points={points} color={m.accent} />
-                  </div>
                 </CardContent>
 
                 <CardFooter>
@@ -168,50 +163,44 @@ export default function Dashboard({ user, thresholds, alerts, onAcknowledge, toa
           })}
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_300px]">
-          <Card>
-            <CardHeader className="pb-0">
-              <div>
-                <h2 className="text-section">Live readings</h2>
-                <p className="mt-1 text-xs text-ink-secondary">This session, sampled every five seconds</p>
-              </div>
-              <Legend series={series} />
-            </CardHeader>
-            <CardContent>
-              {trend.length < 2 ? (
-                <div className="flex h-[300px] flex-col items-center justify-center gap-3">
-                  <div className="skeleton h-full w-full rounded-lg" />
-                </div>
-              ) : (
-                <LineChart series={series} data={trend} />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-0">
-              <h2 className="text-section">Air quality index</h2>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center pt-6">
-              {readings ? (
-                <>
-                  <Gauge
-                    value={readings[selected].air_quality}
-                    min={0}
-                    max={150}
-                    unit="AQI"
-                    status={evaluate(readings[selected].air_quality, thresholds[selected].air_quality)}
-                  />
-                  <p className="mt-4 text-center text-xs leading-relaxed text-ink-secondary">
-                    Values above {thresholds[selected].air_quality.warn_max} raise a warning;
-                    above {thresholds[selected].air_quality.crit_max} raise a critical alert.
-                  </p>
-                </>
-              ) : (
-                <div className="skeleton h-[132px] w-[132px] rounded-full" />
-              )}
-            </CardContent>
-          </Card>
+        {/* One live chart per metric, each on its own scale and unit, so a
+            small temperature change is not flattened by the larger AQI range.
+            Dashed lines mark the location's normal band (A1 Figure 8). */}
+        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+          {Object.values(METRICS).map((m) => {
+            const band = thresholds[selected][m.key];
+            return (
+              <Card key={m.key}>
+                <CardHeader className="pb-0">
+                  <div>
+                    <h2 className="text-section">{m.label}</h2>
+                    <p className="mt-1 text-xs text-ink-secondary">
+                      Live, every five seconds · {m.unit}
+                    </p>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {trend.length < 2 ? (
+                    <div className="skeleton h-[220px] w-full rounded-lg" />
+                  ) : (
+                    <LineChart
+                      series={[{ key: m.key, label: m.label, color: m.accent }]}
+                      data={trend}
+                      height={220}
+                      viewWidth={440}
+                      maxLabels={4}
+                      formatTime={clockSeconds}
+                      unit={m.unit === "AQI" ? " AQI" : m.unit}
+                      bands={[
+                        { value: band.warn_max, label: `Normal max ${band.warn_max}` },
+                        { value: band.warn_min, label: `Normal min ${band.warn_min}` },
+                      ]}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </>

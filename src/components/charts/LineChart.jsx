@@ -8,12 +8,22 @@ import { clock } from "../../lib/data.js";
  * series colours and interaction all follow the Assessment 1 design system,
  * and so the production bundle carries no charting dependency.
  */
-export function LineChart({ series, data, xKey = "recorded_at", height = 300 }) {
+export function LineChart({
+  series,
+  data,
+  xKey = "recorded_at",
+  height = 300,
+  viewWidth = 1000,        // narrower for charts that sit in a one-third column
+  maxLabels = 7,           // time labels along the x-axis
+  formatTime = clock,
+  bands = [],              // reference lines, e.g. the normal band [{ value, label }]
+  unit = "",
+}) {
   const [hover, setHover] = useState(null);
 
   if (!data || data.length < 2) return <div className="skeleton" style={{ height }} />;
 
-  const W = 1000;
+  const W = viewWidth;
   const H = height;
   const pad = { top: 20, right: 20, bottom: 34, left: 48 };
 
@@ -24,14 +34,20 @@ export function LineChart({ series, data, xKey = "recorded_at", height = 300 }) 
     min = Math.min(min, d[k]);
     max = Math.max(max, d[k]);
   }));
+  // Reference lines are included in the scale so the band is always visible
+  // and the reader can see how far the reading sits from it.
+  bands.forEach((b) => { min = Math.min(min, b.value); max = Math.max(max, b.value); });
   const span = max - min || 1;
+  const nonNegative = min >= 0;
   min -= span * 0.15;
   max += span * 0.15;
+  // Humidity and AQI cannot be negative, so padding never pushes the axis below zero.
+  if (nonNegative) min = Math.max(0, min);
 
   const px = (i) => pad.left + (i / (data.length - 1)) * (W - pad.left - pad.right);
   const py = (v) => pad.top + (1 - (v - min) / (max - min)) * (H - pad.top - pad.bottom);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => min + f * (max - min));
-  const labelEvery = Math.ceil(data.length / 7);
+  const labelEvery = Math.ceil(data.length / maxLabels);
 
   const onMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -44,8 +60,8 @@ export function LineChart({ series, data, xKey = "recorded_at", height = 300 }) 
     <div className="relative">
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        style={{ height }}
+        className="block w-full"
+        style={{ height: "auto", aspectRatio: `${W} / ${H}` }}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
         role="img"
@@ -63,11 +79,22 @@ export function LineChart({ series, data, xKey = "recorded_at", height = 300 }) 
 
         {data.map((d, i) =>
           i % labelEvery === 0 ? (
-            <text key={i} x={px(i)} y={H - 10} textAnchor="middle" fontSize="11" fill="hsl(var(--ink-secondary))">
-              {clock(d[xKey])}
+            <text key={i} x={px(i)} y={H - 10} fontSize="11" fill="hsl(var(--ink-secondary))"
+                  textAnchor={i === 0 ? "start" : i >= data.length - labelEvery ? "end" : "middle"}>
+              {formatTime(d[xKey])}
             </text>
           ) : null
         )}
+
+        {bands.map((b) => (
+          <g key={b.label}>
+            <line x1={pad.left} x2={W - pad.right} y1={py(b.value)} y2={py(b.value)}
+                  stroke="hsl(var(--state-good))" strokeOpacity="0.55" strokeWidth="1" strokeDasharray="6 4" />
+            <text x={W - pad.right} y={py(b.value) - 5} textAnchor="end" fontSize="10" fill="hsl(var(--state-good))">
+              {b.label}
+            </text>
+          </g>
+        ))}
 
         {series.map((s) => {
           const line = data.map((d, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(d[s.key]).toFixed(1)}`).join(" ");
@@ -102,12 +129,12 @@ export function LineChart({ series, data, xKey = "recorded_at", height = 300 }) 
             transform: px(hover) > W / 2 ? "translateX(-108%)" : "translateX(8%)",
           }}
         >
-          <p className="mb-1.5 text-[11px] font-medium text-ink-secondary">{clock(data[hover][xKey])}</p>
+          <p className="mb-1.5 text-[11px] font-medium text-ink-secondary">{formatTime(data[hover][xKey])}</p>
           {series.map((s) => (
             <p key={s.key} className="flex items-center gap-2 text-xs text-ink-primary">
               <span className="h-0.5 w-3 rounded-full" style={{ background: s.color }} />
               {s.label}
-              <span className="ml-auto font-semibold">{data[hover][s.key].toFixed(1)}</span>
+              <span className="ml-auto font-semibold">{data[hover][s.key].toFixed(1)}{unit}</span>
             </p>
           ))}
         </div>

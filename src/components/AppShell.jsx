@@ -86,7 +86,7 @@ export function AppShell({ user, route, tabs, onNavigate, onSignOut, onOpenComma
 
       <footer className="shell-gutter border-t border-line py-5 text-xs text-ink-secondary">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span>Environmental Monitor — ICT304 Capstone Project 2 prototype</span>
+          <span>Environmental Monitor</span>
           <span className="flex items-center gap-1.5">
             <Command size={12} />
             Press Ctrl K to search
